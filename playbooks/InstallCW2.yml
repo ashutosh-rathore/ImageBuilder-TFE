@@ -1,5 +1,20 @@
-name: AWS CLI version 2
-description: Installs the latest version of the AWS CLI version 2, and creates the symlink /usr/bin/aws pointing to the installed application. For more information, review the user guide at https://docs.aws.amazon.com/cli/latest/userguide/.
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+name: Amazon CloudWatch Agent
+description: Installs the latest version of the Amazon CloudWatch agent. This component installs only the agent. You must take additional steps to configure and use the Amazon CloudWatch agent. For more information, see the documentation at https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Agent-on-EC2-Instance.html.
 schemaVersion: 1.0
 phases:
   - name: build
@@ -20,34 +35,28 @@ phases:
                 . $FILE
                 echo "$ID${VERSION_ID:+.${VERSION_ID}}"
               else
-                echo "The file $FILE does not exist. Failing build."
+                echo "The file '$FILE' does not exist. Failing build."
                 exit {{ build.Fail.outputs.stdout }}
               fi
 
-      - name: InstallationRequirements
+      - name: IsOperatingSystemSupported
         action: ExecuteBash
         inputs:
           commands:
             - |
               RELEASE='{{ build.OperatingSystemRelease.outputs.stdout }}'
-              if [ `which apt 2> /dev/null` ]; then
-                sudo apt install  --quiet -y curl unzip
-              elif [ `which yum 2> /dev/null` ]; then
-                sudo yum install --quiet -y curl unzip
-              elif [ `which zypper 2> /dev/null` ]; then
-                sudo zypper --quiet install -y curl unzip
+              if [ `echo "$RELEASE" | grep -Ev '^(amzn|centos|debian|rhel|sles|ubuntu)'` ]; then
+                echo "This component does not support '$RELEASE'. Failing build."
+                exit {{ build.Fail.outputs.stdout }}
               fi
 
-      - name: InstallationType
-        action: ExecuteBash
-        inputs:
-          commands:
-            - |
-              BINARY=/usr/local/aws-cli/v2/current/bin/aws
-              if [ -x $BINARY ]; then
-                  echo 'update'
-              else
-                  echo 'install'
+              # This component only supports aarch64 CPUs on Amazon Linux 2, RHEL, SUSE and Ubuntu
+              ARCH=$(uname -m)
+              if [[ `echo $ARCH` == 'aarch64' ]]; then
+                if [ `echo "$RELEASE" | grep -Ev '^(amzn\.2|rhel|sles|ubuntu)'` ]; then
+                  echo "This component does not support '$RELEASE' on ARM64 CPUs. Failing build."
+                  exit {{ build.Fail.outputs.stdout }}
+                fi
               fi
 
       - name: OperatingSystemArchitecture
@@ -56,99 +65,115 @@ phases:
           commands:
             - |
               ARCH=$(uname -m)
-              if [ `echo $ARCH | grep -Ev '^(aarch64|x86_64)'` ]; then
-                echo "The '$ARCH' architecture is not supported. Failing build."
+              case $ARCH in
+                'x86_64')
+                  echo 'amd64'
+                  ;;
+                'aarch64')
+                  echo 'arm64'
+                  ;;
+                *)
+                  echo "The '$ARCH' architecture is not supported. Failing build."
+                  exit {{ build.Fail.outputs.stdout }}
+                  ;;
+              esac
+
+      - name: FileExtension
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              RELEASE='{{ build.OperatingSystemRelease.outputs.stdout }}'
+              if [ `echo "$RELEASE" | grep -E '^(amzn|centos|rhel|sles)'` ]; then
+                echo 'rpm'
+              elif [ `echo "$RELEASE" | grep -E '^(debian|ubuntu)'` ]; then
+                echo 'deb'
+              else
+                echo "The Operating System $RELEASE does not have a file extension specified. Failing build."
                 exit {{ build.Fail.outputs.stdout }}
               fi
-              echo $ARCH
 
       - name: Source
         action: ExecuteBash
         inputs:
           commands:
-            - ARCH='{{ build.OperatingSystemArchitecture.outputs.stdout }}'
-            - echo "https://awscli.amazonaws.com/awscli-exe-linux-$ARCH.zip"
+            - |
+              RELEASE='{{ build.OperatingSystemRelease.outputs.stdout }}'
+              TYPE='{{ build.OperatingSystemArchitecture.outputs.stdout }}'
+              EXTENSION='{{ build.FileExtension.outputs.stdout }}'
 
-      - name: ZipFile
+              if [ `echo "$RELEASE" | grep '^amzn'` ]; then
+                OS='amazon_linux'
+              elif [ `echo "$RELEASE" | grep '^centos'` ]; then
+                OS='centos'
+              elif [ `echo "$RELEASE" | grep '^debian'` ]; then
+                OS='debian'
+              elif [ `echo "$RELEASE" | grep '^rhel'` ]; then
+                OS='redhat'
+              elif [ `echo "$RELEASE" | grep '^sles'` ]; then
+                OS='suse'
+              elif [ `echo "$RELEASE" | grep '^ubuntu'` ]; then
+                OS='ubuntu'
+              else
+                echo "Operating System '$RELEASE' is not supported. Failing build."
+                exit {{ build.Fail.outputs.stdout }}
+              fi
+
+              echo "https://s3.us-east-2.amazonaws.com/amazoncloudwatch-agent-us-east-2/$OS/$TYPE/latest/amazon-cloudwatch-agent.$EXTENSION"
+
+      - name: Installer
         action: ExecuteBash
         inputs:
           commands:
-            - echo '/tmp/awscliv2.zip'
+            - |
+              EXTENSION='{{ build.FileExtension.outputs.stdout }}'
+              echo "/tmp/amazon-cloudwatch-agent.$EXTENSION"
+
+      - name: InstallationRequirements
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              if [ `which curl 2> /dev/null` ]; then
+                :
+              elif [ `which apt 2> /dev/null` ]; then
+                sudo apt install --quiet -y curl 2> /dev/null
+              elif [ `which yum 2> /dev/null` ]; then
+                sudo yum install --quiet -y curl
+              elif [ `which zypper 2> /dev/null` ]; then
+                sudo zypper --quiet install -y curl
+              fi
 
       - name: Download
         action: ExecuteBash
         inputs:
           commands:
-            - |
-              URL='{{ build.Source.outputs.stdout }}'
-              ZIP='{{ build.ZipFile.outputs.stdout }}'
-              echo "Downloading '$URL' to '$ZIP'"
-              curl -s $URL -o $ZIP
-
-      - name: ExtractPath
-        action: ExecuteBash
-        inputs:
-          commands:
-            - echo '/tmp/aws_cli_version_2'
-
-      - name: ExtractZipFile
-        action: ExecuteBash
-        inputs:
-          commands:
-            - |
-              EXTRACT_DIR='{{ build.ExtractPath.outputs.stdout }}'
-              sudo rm -Rf $EXTRACT_DIR
-              mkdir -p $EXTRACT_DIR
-
-              ZIP='{{ build.ZipFile.outputs.stdout }}'
-              echo "Extracting '$ZIP' to '$EXTRACT_DIR'"
-              unzip -q $ZIP -d $EXTRACT_DIR
+            - echo "Downloading '{{ build.Source.outputs.stdout }}' to '{{ build.Installer.outputs.stdout }}'"
+            - curl -s '{{ build.Source.outputs.stdout }}' -o '{{ build.Installer.outputs.stdout }}'
 
       - name: Install
         action: ExecuteBash
         inputs:
           commands:
             - |
-              EXTRACT_DIR='{{ build.ExtractPath.outputs.stdout }}'
-              if [ '{{ build.InstallationType.outputs.stdout' == 'install' ]; then
-                echo "Invoking '$EXTRACT_DIR/aws/install'"
-                sudo $EXTRACT_DIR/aws/install
+              EXTENSION='{{ build.FileExtension.outputs.stdout }}'
+              INSTALLER='{{ build.Installer.outputs.stdout }}'
+              if [[ $EXTENSION == 'rpm' ]]; then
+                sudo rpm --upgrade $INSTALLER --force
+              elif [[ $EXTENSION == 'deb' ]]; then
+                sudo dpkg -i -E $INSTALLER
               else
-                echo "Invoking '$EXTRACT_DIR/aws/install --update'"
-                sudo $EXTRACT_DIR/aws/install --update
+                echo 'Installation not defined for $RELEASE. Failing build.'
+                exit {{ build.Fail.outputs.stdout }}
               fi
 
-      - name: CreateSymlink
+      - name: Cleanup
         action: ExecuteBash
         inputs:
           commands:
-            - |
-              SYMLINK='/usr/bin/aws'
-              TARGET='/usr/local/bin/aws'
-              echo "Creating the symlink '$SYMLINK' pointing to '$TARGET'"
-              sudo ln -s -f $TARGET $SYMLINK
-
-      - name: CleanupDirectories
-        action: ExecuteBash
-        inputs:
-          commands:
-            - |
-              DIRECTORY='{{ build.ExtractPath.outputs.stdout }}'
-              if [ -d $DIRECTORY ]; then
-                echo "Deleting '$DIRECTORY'"
-                sudo rm -Rf $DIRECTORY
-              fi
-
-      - name: CleanupFiles
-        action: ExecuteBash
-        inputs:
-          commands:
-            - |
-              FILE='{{ build.ZipFile.outputs.stdout }}'
-              if [ -f $FILE ]; then
-                echo "Deleting '$FILE'"
-                sudo rm $FILE
-              fi
+            - INSTALLER='{{ build.Installer.outputs.stdout }}'
+            - echo "Deleting '$INSTALLER'"
+            - rm $INSTALLER
 
   - name: validate
     steps:
@@ -168,37 +193,58 @@ phases:
                 . $FILE
                 echo "$ID${VERSION_ID:+.${VERSION_ID}}"
               else
-                echo "The file $FILE does not exist. Failing validation."
+                echo "The file '$FILE' does not exist. Failing validation."
                 exit {{ validate.Fail.outputs.stdout }}
               fi
 
-      - name: FindAWSCLI
+      - name: IsOperatingSystemSupported
         action: ExecuteBash
         inputs:
           commands:
             - |
-              which aws
-              if [[ $? == 1 ]]; then
-                echo "The AWS CLI is not installed. Failing validation."
+              RELEASE='{{ validate.OperatingSystemRelease.outputs.stdout }}'
+              if [ `echo "$RELEASE" | grep -Ev '^(amzn|centos|debian|rhel|sles|ubuntu)'` ]; then
+                echo "This component does not support '$RELEASE'. Failing build."
                 exit {{ validate.Fail.outputs.stdout }}
               fi
 
-      - name: Version
-        action: ExecuteBinary
-        inputs:
-          path: aws
-          arguments:
-            - '--version'
+              # This component only supports aarch64 CPUs on Amazon Linux 2 or SUSE
+              ARCH=$(uname -m)
+              if [[ `echo $ARCH` == 'aarch64' ]]; then
+                if [ `echo "$RELEASE" | grep -Ev '^(amzn\.2|rhel|sles|ubuntu)'` ]; then
+                  echo "This component does not support '$RELEASE' on ARM64 CPUs. Failing build."
+                  exit {{ validate.Fail.outputs.stdout }}
+                fi
+              fi
 
-      - name: Assert
+      - name: FindAmazonCloudWatchAgent
         action: ExecuteBash
         inputs:
           commands:
             - |
-              echo '{{ validate.Version.outputs.stdout }}' | grep '^aws-cli\/2\.' 1> /dev/null
-              if [[ $? == 0 ]]; then
-                echo 'The AWS CLI is running the desired version.'
+              RELEASE='{{ validate.OperatingSystemRelease.outputs.stdout }}'
+              if [ `echo "$RELEASE" | grep -E '^(amzn|centos|rhel)'` ]; then
+                yum list installed | grep '^amazon-cloudwatch-agent' 1> /dev/null
+                echo $?
+              elif [ `echo "$RELEASE" | grep -E '^sles'` ]; then
+                rpm -qa --last | grep '^amazon-cloudwatch-agent' 1> /dev/null
+                echo $?
+              elif [ `echo "$RELEASE" | grep -E '^(debian|ubuntu)'` ]; then
+                apt list --installed 2> /dev/null | grep '^amazon-cloudwatch-agent' 1> /dev/null
+                echo $?
               else
-                echo 'The AWS CLI is not running the desired version. Failing validation.'
+                echo {{ validate.Fail.outputs.stdout }}
+              fi
+
+      - name: AssertInstallation
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              SUCCESS='{{ validate.FindAmazonCloudWatchAgent.outputs.stdout }}'
+              if [[ $SUCCESS == 0 ]]; then
+                echo 'The Amazon CloudWatch Agent is installed.'
+              else
+                echo 'The Amazon CloudWatch Agent is not installed. Failing validation.'
                 exit {{ validate.Fail.outputs.stdout }}
               fi
