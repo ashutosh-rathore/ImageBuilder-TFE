@@ -5,6 +5,12 @@ resource "aws_imagebuilder_image_recipe" "NewRecipe2-TFE" {
   version      = var.Version
   description  = "Creating Recipe through TFE"
 
+// Below cron is for every first day of month at 10PM CST, but for now will run it manually
+/*
+schedule {
+    schedule_expression = "cron(0 4 1 * ? *)"
+  }
+*/
 
   block_device_mapping {
     device_name = "/dev/xvdb"
