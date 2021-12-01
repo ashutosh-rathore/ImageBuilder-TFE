@@ -1,10 +1,6 @@
 
-
-#ref: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/imagebuilder_distribution_configuration
-
-
-resource "aws_imagebuilder_distribution_configuration" "NewDistSet-TFE" {
-  name = "DistSet-TFE"
+resource "aws_imagebuilder_distribution_configuration" "NewDistSet2-TFE" {
+  name = var.DistSetName
 
   distribution {
     ami_distribution_configuration {

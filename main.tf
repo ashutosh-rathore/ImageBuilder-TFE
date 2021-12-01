@@ -40,22 +40,3 @@ data "aws_security_group" "SG" {
     values = ["default-sec-group*"]
   }
 }
-
-
-/*
-resource "aws_s3_bucket_object" "compofile" {
-  for_each = fileset("/arimagebuildcomponents/", "*")
-
-  bucket = var.aws_s3_bucket
-  key    = "/arimagebuildcomponents/${each.value}"
-  source = "/arimagebuildcomponents/${each.value}"
-  # If the md5 hash is different it will re-upload
-  etag = filemd5("/arimagebuildcomponents/${each.value}")
-}
-data "aws_s3_bucket_object" "compfile" {
-
-}
-data "aws_kms_key" "image_builder" {
-  key_id = "alias/image-builder"
-}
-*/

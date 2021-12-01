@@ -1,6 +1,27 @@
+variable "Version" {
+  type = string
+  default = "3.0.0"
+}
 variable "aws_region" {
   type    = string
   default = "us-east-2"
+}
+
+variable "PipelineName" {
+  type = string
+  default = "ImageBuilderPipe2-TFE"
+}
+variable "RecipeName" {
+  type = string
+  default = "UbuntuRecipe2"
+}
+variable "InfraName" {
+  type = string
+  default = "Infra2-TFE"
+}
+variable "DistSetName" {
+  type = string
+  default = "DistSet2-TFE"
 }
 
 /*

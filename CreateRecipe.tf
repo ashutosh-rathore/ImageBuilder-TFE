@@ -1,23 +1,8 @@
-#ref: https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/imagebuilder_image_recipe#parent_image
 
-/* this is still on testing to directly create AMI
-resource "aws_imagebuilder_image" "NewImage-TFE" {
-  image_recipe_arn                 = aws_imagebuilder_image_recipe.NewRecipe-TFE.arn
-  infrastructure_configuration_arn = aws_imagebuilder_infrastructure_configuration.NewConfig-TFE.arn
-  distribution_configuration_arn   = aws_imagebuilder_distribution_configuration.NewDistSet-TFE.arn
-
-
-  depends_on = [
-    aws_imagebuilder_image_recipe.NewRecipe-TFE,
-    aws_imagebuilder_distribution_configuration.NewDistSet-TFE,
-    aws_imagebuilder_infrastructure_configuration.NewConfig-TFE
-  ]
-}*/
-
-resource "aws_imagebuilder_image_recipe" "NewRecipe-TFE" {
-  name         = "UbuntuRecipe"
+resource "aws_imagebuilder_image_recipe" "NewRecipe2-TFE" {
+  name         = var.RecipeName
   parent_image = "arn:${data.aws_partition.current.partition}:imagebuilder:${data.aws_region.current.name}:aws:image/ubuntu-server-20-lts-x86/x.x.x"
-  version      = "1.0.0"
+  version      = var.Version
   description  = "Creating Recipe through TFE"
 
 
@@ -44,26 +29,3 @@ resource "aws_imagebuilder_image_recipe" "NewRecipe-TFE" {
     component_arn = aws_imagebuilder_component.TestCLI.arn
   }
 }
-
-
-
-/*
-resource "aws_imagebuilder_component" "Test1" {
-  data = yamlencode({
-    phases = [{
-      name = "build"
-      steps = [{
-        action = "ExecuteBash"
-        inputs = {
-          commands = ["echo 'hello AR world'"]
-        }
-        name      = "YamlCode"
-        onFailure = "Continue"
-      }]
-    }]
-    schemaVersion = 1.0
-  })
-  name     = "HelloComponent"
-  platform = "Linux"
-  version  = "1.0.0"
-}*/
