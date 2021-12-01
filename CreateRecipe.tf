@@ -15,6 +15,11 @@ resource "aws_imagebuilder_image" "NewImage-TFE" {
 }*/
 
 resource "aws_imagebuilder_image_recipe" "NewRecipe-TFE" {
+  name         = "UbuntuRecipe"
+  parent_image = "arn:${data.aws_partition.current.partition}:imagebuilder:${data.aws_region.current.name}:aws:image/ubuntu-server-20-lts-x86/x.x.x"
+  version      = "1.0.0"
+  description  = "Creating Recipe through TFE"
+
 
   block_device_mapping {
     device_name = "/dev/xvdb"
@@ -26,16 +31,24 @@ resource "aws_imagebuilder_image_recipe" "NewRecipe-TFE" {
     }
   }
   component {
-    component_arn = aws_imagebuilder_component.HelloAR.arn
+    //component_arn = data.aws_imagebuilder_component.AnsiblePlay.arn
+    component_arn = aws_imagebuilder_component.InstallCW2.arn
   }
-
-  name         = "UbuntuRecipe"
-  parent_image = "arn:${data.aws_partition.current.partition}:imagebuilder:${data.aws_region.current.name}:aws:image/ubuntu-server-20-lts-x86/x.x.x"
-  version      = "1.0.0"
+  component {
+    component_arn = data.aws_imagebuilder_component.InstallCLI.arn
+  }
+  component {
+    component_arn = aws_imagebuilder_component.Test_AWS_CW.arn
+  }
+  component {
+    component_arn = aws_imagebuilder_component.TestCLI.arn
+  }
 }
 
 
-resource "aws_imagebuilder_component" "HelloAR" {
+
+/*
+resource "aws_imagebuilder_component" "Test1" {
   data = yamlencode({
     phases = [{
       name = "build"
@@ -50,7 +63,7 @@ resource "aws_imagebuilder_component" "HelloAR" {
     }]
     schemaVersion = 1.0
   })
-  name     = "TestingComponent"
+  name     = "HelloComponent"
   platform = "Linux"
   version  = "1.0.0"
-}
+}*/
