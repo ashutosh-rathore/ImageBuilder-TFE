@@ -14,7 +14,7 @@ provider "aws" {
   region  = "us-east-2"
 }
 
-
+#Required to select source OS
 data "aws_region" "current" {}
 data "aws_partition" "current" {}
 
